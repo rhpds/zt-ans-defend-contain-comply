@@ -1,0 +1,626 @@
+---
+- name: Configure AAP Controller for DCC workshop
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars_files:
+    - vars/workshop.yml
+
+  vars:
+    controller_oauth_token: "{{ controller_oauth_token_override | default(omit) }}"
+
+  module_defaults:
+    group/ansible.controller.controller:
+      controller_host: "{{ aap_host }}"
+      controller_username: "{{ aap_user }}"
+      controller_password: "{{ aap_password }}"
+      controller_oauthtoken: "{{ controller_oauth_token | default(omit) }}"
+      validate_certs: false
+
+  tasks:
+    # ── Users ────────────────────────────────────────────────────────────
+    - name: Create security_engineer user
+      ansible.controller.user:
+        username: security_engineer
+        password: "{{ aap_password }}"
+        first_name: Security
+        last_name: Engineer
+        email: security_engineer@parasol.example.com
+        is_superuser: false
+        update_secrets: true
+        state: present
+
+    - name: Grant security_engineer admin role on Default organization
+      ansible.controller.role:
+        user: security_engineer
+        role: admin
+        organizations:
+          - "{{ workshop_org }}"
+        state: present
+
+
+    # ── Credential ─────────────────────────────────────────────────────
+    - name: Create machine credential for app server
+      ansible.controller.credential:
+        name: "{{ workshop_credential_name }}"
+        organization: "{{ workshop_org }}"
+        credential_type: Machine
+        inputs:
+          username: rhel
+          password: "{{ aap_password }}"
+          become_method: sudo
+          become_username: root
+        state: present
+
+    # ── Execution Environments ─────────────────────────────────────────
+    - name: Register Trusted Pipeline EE for container scanning
+      ansible.controller.execution_environment:
+        name: "{{ scan_ee_name }}"
+        organization: "{{ workshop_org }}"
+        image: "{{ scan_ee_image }}"
+        pull: missing
+        state: present
+
+    # ── Project ────────────────────────────────────────────────────────
+    - name: Create DCC workshop project
+      ansible.controller.project:
+        name: "{{ workshop_project_name }}"
+        organization: "{{ workshop_org }}"
+        scm_type: git
+        scm_url: "{{ gitea_url }}/{{ gitea_repo }}.git"
+        scm_update_on_launch: false
+        state: present
+      register: _project
+
+    - name: Sync project from SCM
+      ansible.controller.project_update:
+        project: "{{ workshop_project_name }}"
+        wait: true
+        timeout: 120
+
+    # ── Inventory ──────────────────────────────────────────────────────
+    - name: Create DCC workshop inventory
+      ansible.controller.inventory:
+        name: "{{ workshop_inventory_name }}"
+        organization: "{{ workshop_org }}"
+        variables:
+          ansible_become: true
+          target_service: httpd
+          target_cve: "{{ target_cve }}"
+          target_advisory: "{{ target_advisory }}"
+          compliance_portal_url: >-
+            {{ 'https://compliance-' ~ workshop_guid ~ '.' ~ workshop_domain
+               if (workshop_guid | default('')) | length > 0 and (workshop_domain | default('')) | length > 0
+               else 'http://central:' ~ compliance_portal_port }}
+        state: present
+
+    - name: Add appservers group
+      ansible.controller.group:
+        name: appservers
+        inventory: "{{ workshop_inventory_name }}"
+        state: present
+
+    - name: Add rhel01 host
+      ansible.controller.host:
+        name: rhel01
+        inventory: "{{ workshop_inventory_name }}"
+        variables:
+          ansible_host: "{{ app_server_ip | default('rhel01') }}"
+        state: present
+
+    - name: Add rhel02 host
+      ansible.controller.host:
+        name: rhel02
+        inventory: "{{ workshop_inventory_name }}"
+        variables:
+          ansible_host: "{{ app_server_2_ip | default('rhel02') }}"
+        state: present
+
+    - name: Add central host
+      ansible.controller.host:
+        name: central
+        inventory: "{{ workshop_inventory_name }}"
+        variables:
+          ansible_host: "{{ central_ip | default('central') }}"
+        state: present
+
+    - name: Add hosts to appservers group
+      ansible.controller.group:
+        name: appservers
+        inventory: "{{ workshop_inventory_name }}"
+        hosts:
+          - rhel01
+          - rhel02
+        preserve_existing_hosts: true
+        state: present
+
+    # ── Job Templates (Module 1: DEFEND) ───────────────────────────────
+    - name: Create job template -- DEFEND - Deploy Application
+      ansible.controller.job_template:
+        name: "DEFEND - Deploy Application"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/defend/deploy-application.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ workshop_ee_name }}"
+        ask_limit_on_launch: true
+        extra_vars:
+          target_cve: "{{ target_cve }}"
+          target_advisory: "{{ target_advisory }}"
+        description: "Module 1: Deploy vulnerable httpd and Parasol Finance portal"
+        state: present
+
+    - name: Create job template -- DEFEND - Scan System
+      ansible.controller.job_template:
+        name: "DEFEND - Scan System"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/defend/scan-system.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ workshop_ee_name }}"
+        ask_limit_on_launch: true
+        extra_vars:
+          target_cve: "{{ target_cve }}"
+        description: "Module 1: Scan target for CVE-2024-38476, report to Splunk"
+        state: present
+
+    - name: Create job template -- DEFEND - Contain Service
+      ansible.controller.job_template:
+        name: "DEFEND - Contain Service"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/defend/contain-service.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ workshop_ee_name }}"
+        description: "Module 1: Firewall restrictions and httpd hardening"
+        state: present
+
+    - name: Create job template -- DEFEND - Harden Posture
+      ansible.controller.job_template:
+        name: "DEFEND - Harden Posture"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/defend/harden-posture.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ workshop_ee_name }}"
+        description: "Module 1: SELinux booleans and AIDE file integrity monitoring"
+        state: present
+
+    - name: Create job template -- DEFEND - Restore Containment
+      ansible.controller.job_template:
+        name: "DEFEND - Restore Containment"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/defend/restore-containment.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ workshop_ee_name }}"
+        ask_limit_on_launch: true
+        description: "Module 1: Undo containment — restore eth0 to public, revert hardening"
+        state: present
+
+    - name: Create job template -- DEFEND - Verify Security Posture
+      ansible.controller.job_template:
+        name: "DEFEND - Verify Security Posture"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/defend/verify-security-posture.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ workshop_ee_name }}"
+        description: "Module 1: Display containment state across all app servers"
+        state: present
+
+    # ── Job Templates (Module 2: CONTAIN) ──────────────────────────────
+    - name: Create job template -- CONTAIN - Pre-Patch Check
+      ansible.controller.job_template:
+        name: "CONTAIN - Pre-Patch Check"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/contain/pre-patch-check.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ workshop_ee_name }}"
+        extra_vars:
+          enforce_maintenance_window: false
+        description: "Module 2: Query OPA policy gates before patching"
+        state: present
+
+    - name: Create job template -- CONTAIN - Patch System
+      ansible.controller.job_template:
+        name: "CONTAIN - Patch System"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/contain/patch-system.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ workshop_ee_name }}"
+        extra_vars:
+          target_advisory: "{{ target_advisory }}"
+        description: "Module 2: Apply RHSA-2024:5138 security errata"
+        state: present
+
+    - name: Create job template -- CONTAIN - Post-Patch Verify
+      ansible.controller.job_template:
+        name: "CONTAIN - Post-Patch Verify"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/contain/post-patch-verify.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ workshop_ee_name }}"
+        extra_vars:
+          target_cve: "{{ target_cve }}"
+        description: "Module 2: Confirm CVE is resolved after patching"
+        state: present
+
+    - name: Create job template -- CONTAIN - Report Compliance
+      ansible.controller.job_template:
+        name: "CONTAIN - Report Compliance"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/contain/report-compliance.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ workshop_ee_name }}"
+        extra_vars:
+          target_cve: "{{ target_cve }}"
+          target_advisory: "{{ target_advisory }}"
+        description: "Module 2: Generate patch compliance evidence report"
+        state: present
+
+    - name: Create job template -- CONTAIN - Update Maintenance Window
+      ansible.controller.job_template:
+        name: "CONTAIN - Update Maintenance Window"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/contain/update-maintenance-window.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ workshop_ee_name }}"
+        survey_enabled: true
+        survey_spec:
+          name: "Maintenance Window Configuration"
+          description: "Set the allowed maintenance window hours for patching"
+          spec:
+            - question_name: "Window Start Hour"
+              question_description: "Earliest hour patching is allowed (0-23)"
+              variable: "window_start_hour"
+              type: "integer"
+              required: true
+              default: 6
+              min: 0
+              max: 23
+            - question_name: "Window End Hour"
+              question_description: "Latest hour patching is allowed (0-23, must be greater than start)"
+              variable: "window_end_hour"
+              type: "integer"
+              required: true
+              default: 22
+              min: 1
+              max: 23
+        description: "Module 2: Update OPA maintenance window policy for patching gates"
+        state: present
+
+    # ── Job Templates (Module 3: COMPLY) ───────────────────────────────
+    - name: Create job template -- COMPLY - Compliance Audit
+      ansible.controller.job_template:
+        name: "COMPLY - Compliance Audit"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/comply/compliance-audit.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ workshop_ee_name }}"
+        ask_variables_on_launch: true
+        description: "Module 3: Evaluate system against OPA compliance baselines"
+        state: present
+
+    - name: Create job template -- COMPLY - CIS Harden
+      ansible.controller.job_template:
+        name: "COMPLY - CIS Harden"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/comply/cis-harden.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ workshop_ee_name }}"
+        description: "Module 3: Apply CIS benchmark-aligned hardening controls"
+        state: present
+
+    - name: Create job template -- COMPLY - Compliance Report
+      ansible.controller.job_template:
+        name: "COMPLY - Compliance Report"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/comply/generate-compliance-report.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ workshop_ee_name }}"
+        extra_vars:
+          target_cve: "{{ target_cve }}"
+          target_advisory: "{{ target_advisory }}"
+        description: "Module 3: Generate HTML compliance report with before/after evidence"
+        state: present
+
+    - name: Create job template -- COMPLY - Build Container
+      ansible.controller.job_template:
+        name: "COMPLY - Build Container"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/comply/build-container.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ workshop_ee_name }}"
+        description: "Module 3: Build hardened container image from UBI9-minimal"
+        state: present
+
+    - name: Create job template -- COMPLY - Scan Image
+      ansible.controller.job_template:
+        name: "COMPLY - Scan Image"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/comply/scan-image.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ scan_ee_name }}"
+        description: "Module 3: Scan container image for vulnerabilities"
+        state: present
+
+    - name: Create job template -- COMPLY - Push to Registry
+      ansible.controller.job_template:
+        name: "COMPLY - Push to Registry"
+        organization: "{{ workshop_org }}"
+        project: "{{ workshop_project_name }}"
+        playbook: "lab/playbooks/comply/push-to-registry.yml"
+        inventory: "{{ workshop_inventory_name }}"
+        credential: "{{ workshop_credential_name }}"
+        execution_environment: "{{ workshop_ee_name }}"
+        description: "Module 3: Push verified container to local registry"
+        state: present
+
+    # ── Workflow: Vulnerability Containment ────────────────────────────
+    - name: Create workflow -- Vulnerability Containment
+      ansible.controller.workflow_job_template:
+        name: "Vulnerability Containment"
+        organization: "{{ workshop_org }}"
+        inventory: "{{ workshop_inventory_name }}"
+        ask_limit_on_launch: true
+        ask_variables_on_launch: true
+        state: present
+
+    - name: Build Vulnerability Containment workflow nodes
+      ansible.controller.workflow_job_template_node:
+        workflow_job_template: "Vulnerability Containment"
+        identifier: "{{ item.id }}"
+        unified_job_template: "{{ item.template }}"
+        organization: "{{ workshop_org }}"
+        state: present
+      loop:
+        - { id: scan, template: "DEFEND - Scan System" }
+        - { id: contain, template: "DEFEND - Contain Service" }
+        - { id: harden, template: "DEFEND - Harden Posture" }
+
+    - name: Link Vulnerability Containment workflow -- scan to contain
+      ansible.controller.workflow_job_template_node:
+        workflow_job_template: "Vulnerability Containment"
+        identifier: scan
+        organization: "{{ workshop_org }}"
+        success_nodes:
+          - contain
+        state: present
+
+    - name: Link Vulnerability Containment workflow -- contain to harden
+      ansible.controller.workflow_job_template_node:
+        workflow_job_template: "Vulnerability Containment"
+        identifier: contain
+        organization: "{{ workshop_org }}"
+        success_nodes:
+          - harden
+        state: present
+
+    # ── Workflow: Policy-Gated Patching (empty shell; attendees add nodes in the UI) ─
+    - name: Create workflow -- Policy-Gated Patching
+      ansible.controller.workflow_job_template:
+        name: "Policy-Gated Patching"
+        organization: "{{ workshop_org }}"
+        inventory: "{{ workshop_inventory_name }}"
+        state: present
+
+    - name: Grant security_engineer admin role on Policy-Gated Patching
+      ansible.controller.role:
+        user: security_engineer
+        role: admin
+        workflows:
+          - "Policy-Gated Patching"
+        state: present
+
+    - name: Grant security_engineer approval role on Policy-Gated Patching
+      ansible.controller.role:
+        user: security_engineer
+        role: approval
+        workflows:
+          - "Policy-Gated Patching"
+        state: present
+
+    - name: Grant security_engineer execute role on Policy-Gated Patching
+      ansible.controller.role:
+        user: security_engineer
+        role: execute
+        workflows:
+          - "Policy-Gated Patching"
+        state: present
+
+    - name: Build Policy-Gated Patching workflow nodes
+      ansible.controller.workflow_job_template_node:
+        workflow_job_template: "Policy-Gated Patching"
+        identifier: "{{ item.id }}"
+        unified_job_template: "{{ item.template }}"
+        organization: "{{ workshop_org }}"
+        state: present
+      loop:
+        - { id: precheck, template: "CONTAIN - Pre-Patch Check" }
+        - { id: patch, template: "CONTAIN - Patch System" }
+        - { id: verify, template: "CONTAIN - Post-Patch Verify" }
+        - { id: report, template: "CONTAIN - Report Compliance" }
+      tags:
+        - patching_workflow
+        - never
+
+    - name: Create approval node for patching workflow
+      ansible.controller.workflow_job_template_node:
+        workflow_job_template: "Policy-Gated Patching"
+        identifier: approval
+        approval_node:
+          name: "Approve Patch Application"
+          description: "Security team approval required before applying {{ target_advisory }}"
+          timeout: 900
+        organization: "{{ workshop_org }}"
+        state: present
+      tags:
+        - patching_workflow
+        - never
+
+    - name: Link patching workflow -- precheck to approval
+      ansible.controller.workflow_job_template_node:
+        workflow_job_template: "Policy-Gated Patching"
+        identifier: precheck
+        organization: "{{ workshop_org }}"
+        success_nodes:
+          - approval
+        state: present
+      tags:
+        - patching_workflow
+        - never
+
+    - name: Link patching workflow -- approval to patch
+      ansible.controller.workflow_job_template_node:
+        workflow_job_template: "Policy-Gated Patching"
+        identifier: approval
+        organization: "{{ workshop_org }}"
+        success_nodes:
+          - patch
+        state: present
+      tags:
+        - patching_workflow
+        - never
+
+    - name: Link patching workflow -- patch to verify
+      ansible.controller.workflow_job_template_node:
+        workflow_job_template: "Policy-Gated Patching"
+        identifier: patch
+        organization: "{{ workshop_org }}"
+        success_nodes:
+          - verify
+        state: present
+      tags:
+        - patching_workflow
+        - never
+
+    - name: Link patching workflow -- verify to report
+      ansible.controller.workflow_job_template_node:
+        workflow_job_template: "Policy-Gated Patching"
+        identifier: verify
+        organization: "{{ workshop_org }}"
+        success_nodes:
+          - report
+        state: present
+      tags:
+        - patching_workflow
+        - never
+
+    # ── Workflow: Compliance and Hardening ──────────────────────────────
+    - name: Create workflow -- Compliance and Hardening
+      ansible.controller.workflow_job_template:
+        name: "Compliance and Hardening"
+        organization: "{{ workshop_org }}"
+        inventory: "{{ workshop_inventory_name }}"
+        state: present
+
+    - name: Build Compliance workflow nodes
+      ansible.controller.workflow_job_template_node:
+        workflow_job_template: "Compliance and Hardening"
+        identifier: "{{ item.id }}"
+        unified_job_template: "{{ item.template }}"
+        organization: "{{ workshop_org }}"
+        extra_data: "{{ item.extra | default(omit) }}"
+        state: present
+      loop:
+        - { id: audit_pre, template: "COMPLY - Compliance Audit", extra: { audit_phase: "pre" } }
+        - { id: harden, template: "COMPLY - CIS Harden" }
+        - { id: audit_post, template: "COMPLY - Compliance Audit", extra: { audit_phase: "post" } }
+        - { id: report, template: "COMPLY - Compliance Report" }
+        - { id: build, template: "COMPLY - Build Container" }
+        - { id: scan, template: "COMPLY - Scan Image" }
+        - { id: push, template: "COMPLY - Push to Registry" }
+
+    - name: Link Compliance workflow -- audit_pre to harden
+      ansible.controller.workflow_job_template_node:
+        workflow_job_template: "Compliance and Hardening"
+        identifier: audit_pre
+        organization: "{{ workshop_org }}"
+        success_nodes:
+          - harden
+        state: present
+
+    - name: Link Compliance workflow -- harden to audit_post
+      ansible.controller.workflow_job_template_node:
+        workflow_job_template: "Compliance and Hardening"
+        identifier: harden
+        organization: "{{ workshop_org }}"
+        success_nodes:
+          - audit_post
+        state: present
+
+    - name: Link Compliance workflow -- audit_post to report
+      ansible.controller.workflow_job_template_node:
+        workflow_job_template: "Compliance and Hardening"
+        identifier: audit_post
+        organization: "{{ workshop_org }}"
+        success_nodes:
+          - report
+        state: present
+
+    - name: Link Compliance workflow -- report to build
+      ansible.controller.workflow_job_template_node:
+        workflow_job_template: "Compliance and Hardening"
+        identifier: report
+        organization: "{{ workshop_org }}"
+        success_nodes:
+          - build
+        state: present
+
+    - name: Link Compliance workflow -- build to scan
+      ansible.controller.workflow_job_template_node:
+        workflow_job_template: "Compliance and Hardening"
+        identifier: build
+        organization: "{{ workshop_org }}"
+        success_nodes:
+          - scan
+        state: present
+
+    - name: Link Compliance workflow -- scan to push
+      ansible.controller.workflow_job_template_node:
+        workflow_job_template: "Compliance and Hardening"
+        identifier: scan
+        organization: "{{ workshop_org }}"
+        success_nodes:
+          - push
+        state: present
+
+    # ── Verification ───────────────────────────────────────────────────
+    - name: Report AAP configuration status
+      ansible.builtin.debug:
+        msg: |
+          AAP Controller configured for DCC workshop:
+            Project:    {{ workshop_project_name }}
+            Inventory:  {{ workshop_inventory_name }}
+            Credential: {{ workshop_credential_name }}
+            Job Templates:      15 (DEFEND: 4, CONTAIN: 5, COMPLY: 6)
+            Workflows:          3 (Vulnerability Containment, Policy-Gated Patching, Compliance and Hardening)
+            Approval node:      Approve Patch Application (15 min timeout)

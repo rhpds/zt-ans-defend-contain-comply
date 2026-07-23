@@ -1,104 +1,120 @@
-=== Getting Started
+= Defend, Contain, Comply
+:toc: auto
 
-* Create a git repo from this template
-* Clone the repo and *cd* into it
+A hands-on workshop demonstrating automated vulnerability response, policy-gated
+patching, and compliance hardening using Red Hat Ansible Automation Platform.
 
-=== Understanding the Basic Template Directory Structure
+== Workshop Modules
 
-. Content Directory
-+
-.tree output
-[source,shell]
-----
-.
-├── README.adoc                 # Readme file
-├── config                      # Defines VMs, network and firewall
-├── runtime-automation          # Scripts directory for setup/next/solve modules 
-├── setup-automation            # Scripts directory when provisioning
-├── ui-config.yml               # Configuration file
-├── site.yml                    # Theme config
-└── content                     # Content directory
-    ├── antora.yml              # Antora configuration file. You can add "inline vars" here to render within your content
-    └── modules/ROOT
-        ├── assets
-        │   └── images                       # Images used in your content 
-        │       └── example-image.png
-        ├── pages                            # Your content goes here
-        │   ├── module-01.adoc               # First module of your lab, e.g. overview etc 
-        │   ├── module-02.adoc               # Second module of your lab  
-        │   └── module-03.adoc               # Third module
-----
+[cols="1,2,2"]
+|===
+| Module | Focus | Hands-on exercises
 
-. Lab definition directory
-+
-.tree output
-[source,shell]
-----
-config/
-├── firewall.yaml                           # Define the egress/ingress rules to be allowed
-├── instances.yaml                          # Define the instances to be created
-└── networks.yml                            # Define the networks to be created
-----
+| *DEFEND -- Detect and Contain*
+| Detect CVE-2024-38476 in Apache httpd, contain the vulnerable service, and harden the system posture -- all driven by Event-Driven Ansible responding to Splunk alerts.
+| Write an EDA rulebook from a skeleton; configure EDA Controller manually (credential, project, rulebook activation).
 
+| *CONTAIN -- Policy-Gated Remediation*
+| Apply the RHSA-2024:5138 patch through an OPA policy-gated workflow with pre-patch validation, approval gates, post-patch verification, and compliance reporting.
+| Write a pre-patch policy check playbook that queries OPA; build the Policy-Gated Patching workflow in the AAP UI.
 
-. Runtime Scripts Directory Structure
-+
-.tree output
-[source,shell]
-----
-runtime-automation/
-├── module_1                            # The directory name should be the same as 
-│                                       # the module content page name
-│   ├── setup.sh                        # Setup playbook which run at start of module 
-│                                       # and when clicked on next button
-│   ├── solve.sh                        # Solve playbook, run when clicked on solve button
-│   └── validation.sh                   # Validation playbook, run when click on next button
-├── ansible.cfg                         # Ansible configuration used with module playbooks
-└── main.yml                            # Playbook to be called in each step
-----
+| *COMPLY -- Audit, Harden, Deliver*
+| Run a 13-control OPA compliance audit, apply CIS-aligned hardening, generate before/after evidence, then build a hardened container image, scan it, and push to a registry.
+| Execute and observe the full compliance and delivery workflow.
+|===
 
-. Setup Scripts Directory Structure
-+
-.tree output
-[source,shell]
+== Architecture
+
+[cols="1,2"]
+|===
+| Host | Role
+
+| `control`  | AAP Controller 2.6 + EDA Controller
+| `central`  | Splunk (SIEM), OPA (policy engine), errata yum repo
+| `rhel01`   | Target app server (Parasol Finance customer portal)
+| `rhel02`   | Spare RHEL host
+| `gitea`    | Git repository (containerized)
+|===
+
+== Repository Structure
+
+[source]
 ----
-setup-automation/
-├── setup-vmname.sh                     # Script to be executed on vmname when is provisioned
-├── ansible.cfg                         # Ansible configuration used with module playbooks
-└── main.yml                            # Playbook to be called in each step
+zt-ans-defend-contain-comply/
+├── config/                        # VM topology, firewall rules, secrets
+├── content/                       # Showroom Antora pages (thin navigation)
+├── setup-automation/
+│   ├── main.yml                   # Pure Ansible orchestration (5 phases)
+│   ├── recover-after-restart.yml  # Post-reboot service recovery
+│   ├── ansible.cfg
+│   └── tasks/
+│       ├── common-bootstrap.yml   # SSH, SELinux, networking, RHSM
+│       ├── setup-central.yml      # Packages, collections, clone repo, deploy containers
+│       ├── setup-control.yml      # Repos, collections, clone repo, symlinks
+│       ├── configure-central.yml  # Run errata repo + Splunk alerts playbooks
+│       └── configure-control.yml  # Wait for AAP, OAuth token, run AAP/app config
+├── lab/                           # Workshop content (playbooks, setup, exercises)
+│   ├── playbooks/                 # Exercise playbooks (defend/, contain/, comply/)
+│   ├── setup/                     # AAP/EDA/rhel01 configure playbooks
+│   ├── inventory/                 # workshop.yml
+│   ├── templates/                 # Containerfile, compliance reports, Splunk payload
+│   ├── rulebooks/                 # EDA rulebooks (solution + exercise skeleton)
+│   ├── collections/               # requirements.yml
+│   ├── policies/                  # patch-policy.yml (OPA gate definitions)
+│   └── content/                   # Lab guide AsciiDoc (detailed exercises)
+├── ui-config.yml
+└── README.adoc
 ----
 
+== Setup
 
-== Understanding UI Configration file
-. Example: The *ui-config.yml* configuration file
-+
-.tree output
-[source,shell]
+The automated setup provisions infrastructure and configures all services except EDA
+and the Policy-Gated Patching workflow, which are hands-on exercises.
+
+=== What the setup creates
+
+* Central services: Splunk, OPA, errata repository
+* App server: vulnerable httpd, firewalld, SELinux, Podman, container images
+* AAP: credential, project (Gitea sync), inventory, 13 job templates, 2 workflows
+  (Vulnerability Containment, Compliance and Hardening)
+
+=== What attendees configure manually
+
+* EDA Controller: credential, project, rulebook activation (Module 1)
+* Policy-Gated Patching workflow in AAP (Module 2)
+
+=== Opt-in automated setup
+
+To include EDA and the patching workflow in automated setup:
+
+[source,bash]
 ----
-antora:
-  name: modules
-  dir: www
-  modules:
-    - name: 01-playbook-inventory               # Module Name
-      label: Playbook Inventory                 # Module Label
-      solveButton: true                         # Enable Solve button
-    - name: 02-playbook-directory-structure
-      label: Playbook Directory Structure
-      solveButton: true
-tabs:
-  - name: VSCode Editor                         # Tab name
-    port: 8443                                  # Port no of the service
-    path: /?folder=/home/rhel/ansible-files/    # Path suffix
-  - name: ">_control"                           # Tab name
-    port: 443                                   # Port of the tt1 terminal
-    path: /tty1                                 # Path to the tty1 terminal
+ansible-playbook setup-automation/main.yml --tags all,eda,patching_workflow
 ----
 
-=== Development Cycle
+== Exercise Skeletons
 
-. Edit your content in `content/modules/ROOT/pages/`
-. Use `git` to branch and commit your work
-. Push your work to your repo
-.. You should use `git tags` or `git branches` in production
-.. However development items default to the head of `main`
+Two exercise files provide scaffolding with TODO comments, hints, and solution references:
 
+[cols="1,2,1"]
+|===
+| Exercise | Skeleton | Solution
+
+| EDA rulebook writing
+| `lab/extensions/eda/splunk-cve-alert-exercise.yml`
+| `lab/extensions/eda/splunk-cve-alert.yml`
+
+| Pre-patch OPA policy check
+| `lab/playbooks/contain/pre-patch-check-exercise.yml`
+| `lab/playbooks/contain/pre-patch-check.yml`
+|===
+
+== Prerequisites
+
+* OpenShift Virtualization cluster with RHDP provisioner
+* AAP 2.6 controller image
+* RHEL 9.5 base image
+
+== License
+
+Red Hat internal use.

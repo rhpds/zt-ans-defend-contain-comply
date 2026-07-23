@@ -1,0 +1,143 @@
+---
+- name: Configure EDA Controller for DCC workshop
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars_files:
+    - vars/workshop.yml
+
+  vars:
+    eda_api: "{{ eda_host }}/api/eda/v1"
+    eda_auth:
+      username: "{{ eda_user }}"
+      password: "{{ eda_password }}"
+    eda_webhook_token: "{{ eda_webhook_token_value | default('dcc-workshop-webhook-token') }}"
+
+  tasks:
+    # ── Wait for EDA Controller ────────────────────────────────────────
+    - name: Wait for EDA Controller API to be ready
+      ansible.builtin.uri:
+        url: "{{ eda_api }}/users/me/"
+        user: "{{ eda_user }}"
+        password: "{{ eda_password }}"
+        validate_certs: false
+        force_basic_auth: true
+        status_code: [200]
+      retries: 30
+      delay: 10
+      register: _eda_ready
+      until: _eda_ready is succeeded
+
+    # ── EDA Organization lookup ────────────────────────────────────────
+    - name: Get Default organization ID
+      ansible.builtin.uri:
+        url: "{{ eda_api }}/organizations/?name=Default"
+        user: "{{ eda_user }}"
+        password: "{{ eda_password }}"
+        validate_certs: false
+        force_basic_auth: true
+      register: _eda_org
+
+    - name: Set EDA organization ID fact
+      ansible.builtin.set_fact:
+        eda_org_id: "{{ _eda_org.json.results[0].id }}"
+
+    # ── EDA Credential for AAP ─────────────────────────────────────────
+    - name: Look up AAP credential type in EDA
+      ansible.builtin.uri:
+        url: "{{ eda_api }}/credential-types/?name={{ 'Red Hat Ansible Automation Platform' | urlencode }}"
+        user: "{{ eda_user }}"
+        password: "{{ eda_password }}"
+        validate_certs: false
+        force_basic_auth: true
+        status_code: [200]
+      register: _eda_aap_cred_type
+
+    - name: Set EDA AAP credential type ID
+      ansible.builtin.set_fact:
+        eda_aap_cred_type_id: "{{ _eda_aap_cred_type.json.results[0].id }}"
+
+    - name: Check existing EDA credentials
+      ansible.builtin.uri:
+        url: "{{ eda_api }}/eda-credentials/?name=DCC+Controller+Token"
+        user: "{{ eda_user }}"
+        password: "{{ eda_password }}"
+        validate_certs: false
+        force_basic_auth: true
+      register: _existing_cred
+
+    - name: Create EDA credential for AAP Controller
+      ansible.builtin.uri:
+        url: "{{ eda_api }}/eda-credentials/"
+        method: POST
+        user: "{{ eda_user }}"
+        password: "{{ eda_password }}"
+        validate_certs: false
+        force_basic_auth: true
+        body_format: json
+        body:
+          name: "DCC Controller Token"
+          organization_id: "{{ eda_org_id }}"
+          credential_type_id: "{{ eda_aap_cred_type_id | int }}"
+          inputs:
+            host: "{{ aap_host }}/api/controller/"
+            username: "{{ aap_user }}"
+            password: "{{ aap_password }}"
+            verify_ssl: false
+        status_code: [201]
+      when: _existing_cred.json.count == 0
+
+    # ── EDA Project ────────────────────────────────────────────────────
+    - name: Check existing EDA projects
+      ansible.builtin.uri:
+        url: "{{ eda_api }}/projects/?name=Defend%2C+Contain%2C+Comply"
+        user: "{{ eda_user }}"
+        password: "{{ eda_password }}"
+        validate_certs: false
+        force_basic_auth: true
+      register: _existing_project
+
+    - name: Create EDA project
+      ansible.builtin.uri:
+        url: "{{ eda_api }}/projects/"
+        method: POST
+        user: "{{ eda_user }}"
+        password: "{{ eda_password }}"
+        validate_certs: false
+        force_basic_auth: true
+        body_format: json
+        body:
+          name: "{{ workshop_project_name }}"
+          organization_id: "{{ eda_org_id }}"
+          url: "{{ gitea_url }}/{{ gitea_repo }}.git"
+        status_code: [201]
+      register: _eda_project
+      when: _existing_project.json.count == 0
+
+    - name: Get EDA project ID
+      ansible.builtin.set_fact:
+        eda_project_id: >-
+          {{ _eda_project.json.id | default(_existing_project.json.results[0].id) }}
+
+    - name: Wait for EDA project sync
+      ansible.builtin.uri:
+        url: "{{ eda_api }}/projects/{{ eda_project_id }}/"
+        user: "{{ eda_user }}"
+        password: "{{ eda_password }}"
+        validate_certs: false
+        force_basic_auth: true
+      register: _project_status
+      retries: 30
+      delay: 5
+      until: _project_status.json.import_state | default('') == 'completed'
+
+    # ── Verification ───────────────────────────────────────────────────
+    - name: Report EDA configuration status
+      ansible.builtin.debug:
+        msg: |
+          EDA Controller pre-configured for DCC workshop:
+            Credential:          DCC Controller Token
+            Project:             {{ workshop_project_name }}
+            Controller Token:    generated
+          Students will create: Token Event Stream, Rulebook Activation, and configure the Splunk add-on.
