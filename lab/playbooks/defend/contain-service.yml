@@ -10,6 +10,17 @@
     external_interface: eth0
 
   tasks:
+    # ── Skip if httpd is not installed (app not deployed yet) ─────────
+    - name: Check if target service is installed on host
+      ansible.builtin.command: rpm -q {{ target_service }}
+      register: _service_present
+      changed_when: false
+      failed_when: false
+
+    - name: Skip host -- target service not installed
+      ansible.builtin.meta: end_host
+      when: _service_present.rc != 0
+
     # ── Skip if already contained ─────────────────────────────────────
     - name: Check current zone for external interface
       ansible.builtin.command: firewall-cmd --get-zone-of-interface={{ external_interface }}

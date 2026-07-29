@@ -7,6 +7,17 @@
     aide_db_path: /var/lib/aide/aide.db.gz
 
   tasks:
+    # ── Skip if httpd is not installed (app not deployed yet) ─────────
+    - name: Check if httpd is installed
+      ansible.builtin.command: rpm -q httpd
+      register: _httpd_installed
+      changed_when: false
+      failed_when: false
+
+    - name: Skip host -- httpd not installed
+      ansible.builtin.meta: end_host
+      when: _httpd_installed.rc != 0
+
     # ── Skip if already hardened ──────────────────────────────────────
     - name: Check if SELinux httpd booleans are already hardened
       ansible.builtin.command: getsebool httpd_can_network_connect

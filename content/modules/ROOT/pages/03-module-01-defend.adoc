@@ -43,6 +43,8 @@ Your security team has flagged unusual activity. Start by investigating what Spl
 
 . Navigate to **Search & Reporting** from the left sidebar.
 
+image::sec1.png[Splunk Search & Reporting]
+
 . Run the following search to see the vulnerability events:
 +
 [source]
@@ -62,6 +64,9 @@ You should see multiple events reporting a critical vulnerability in `httpd` on 
 
 . Now run the aggregated search that the saved alert uses:
 +
+
+image::sec2.png[Splunk Search & Reporting]
+
 [source]
 ----
 index=main sourcetype=linux_secure "CVE-2024-38476" OR "httpd" OR "vulnerability" | stats count by host, source | where count > 0
@@ -98,6 +103,9 @@ Splunk shows the detection, but you need to confirm the CVE actually exists on t
 . Watch the job output. You should see:
 +
 * `CRITICAL: {target_cve} detected on rhel01`
+
+image::sec3.png[AAP Job Output]
+
 * Advisory details for `{target_advisory}` showing the affected `httpd` package
 
 The CVE is confirmed. The vulnerable `httpd-2.4.57-5.el9` package is installed on rhel01.
@@ -190,7 +198,13 @@ NOTE: Keep this baseline in mind — after the workflow runs, every one of these
 +
 * **DEFEND - Scan System** — confirms {target_cve} is present
 * **DEFEND - Contain Service** — isolates the external interface (`eth0`) to an `internal-only` firewall zone and hardens httpd
+
+image::sec4.png[Vulnerability Containment Workflow]
+
+
 * **DEFEND - Harden Posture** — applies SELinux booleans and deploys file integrity monitoring
+
+image::sec5.png[Vulnerability Containment Workflow]
 
 . Wait for the workflow to complete successfully.
 
@@ -320,6 +334,9 @@ When the Splunk saved search detects CVE events, the **Event-Driven Ansible Add-
 
 . Create a new file and add the following path to the repository `/extensions/eda/rulebooks/splunk-cve-alert.yml`, add the following yaml content:
 
+image::sec6.png[Gitea Repository]
+
+
 +
 [source,role="code"]
 ----
@@ -346,6 +363,9 @@ When the Splunk saved search detects CVE events, the **Event-Driven Ansible Add-
 
 
 +
+
+image::sec7.png[Gitea Repository]
+
 [TIP]
 ====
 The Splunk add-on sends the saved search name in `event.payload.search_name`. Use the `is search()` operator for substring matching — this is more resilient than exact string comparison.
