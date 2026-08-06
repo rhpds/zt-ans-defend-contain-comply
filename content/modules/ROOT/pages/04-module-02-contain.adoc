@@ -303,8 +303,29 @@ ssh rhel01 'cat /tmp/compliance-reports/compliance-report-$(date +%Y-%m-%d).html
 [source,role="execute"]
 ----
 ssh rhel01 'cat /tmp/compliance-reports/compliance-report-$(date +%Y-%m-%d).html | grep -E "httpd|CVE|RHSA|SELinux" | head -10'
-----
 
+----
+. In AAP Controller, go back to **Automation Execution → Jobs** and click on the completed **Policy-Gated Patching** workflow job. Click on the **Pre-Patch Check**
++
+On the job details look at the **Extra Vars** panel. The `set_stats` data from each job shows the complete audit trail:
++
+* `pre_patch_policy_passed: true` — all OPA gates passed
+* `patch_applied: true` — the errata was installed
+* `cve_resolved: true` — post-patch verification confirmed
+* `selinux_enforcing: true` — security posture maintained
++
+This data is machine-readable and flows between workflow nodes — compliance teams can query it programmatically.
+
+=== Verify
+
+The compliance report contains:
+
+* CVE identifier and advisory number
+* Package version before and after patching
+* SELinux status
+* Firewall configuration
+* Complete remediation timestamp
+* The `set_stats` artifacts provide a machine-readable audit trail
 
 == Exercise 7: Test Policy Violation (Optional)
 
