@@ -92,7 +92,7 @@ You will write a playbook that gathers system facts, sends them to OPA for evalu
 
 Now construct the workflow that chains the policy check, approval, patching, and reporting.
 
-. In AAP Controller, navigate to **Resources → Templates**.
+. In AAP Controller, navigate to **Automation Execution → Templates**.
 
 . Click the **Edit** on the Policy-Gated Patching workflow.
 
