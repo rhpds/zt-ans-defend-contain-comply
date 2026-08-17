@@ -16,6 +16,14 @@
           - podman-plugins
         state: present
 
+    - name: Configure podman to use cgroupfs (workshop VMs lack eBPF device filter support)
+      ansible.builtin.copy:
+        content: |
+          [engine]
+          cgroup_manager = "cgroupfs"
+        dest: /etc/containers/containers.conf
+        mode: "0644"
+
     # ── Firewall ───────────────────────────────────────────────────────
     - name: Install firewalld
       ansible.builtin.dnf:

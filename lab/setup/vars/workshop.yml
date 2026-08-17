@@ -54,7 +54,7 @@ splunk_port: 8089
 splunk_user: admin
 splunk_password: "{{ splunk_admin_password | default('ansible123!') }}"
 splunk_container_name: splunk
-splunk_image: docker.io/splunk/splunk:latest
+splunk_image: docker.io/splunk/splunk:9.4.12
 splunk_hec_token: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 splunk_data_dir: /opt/splunk-data
 
@@ -65,6 +65,6 @@ compliance_portal_service_name: dcc-compliance-portal
 
 # OPA container
 opa_container_name: opa
-opa_image: docker.io/openpolicyagent/opa:latest
+opa_image: docker.io/openpolicyagent/opa:1.19.0
 opa_policy_dir: /opt/opa/policies
 opa_port: 8181

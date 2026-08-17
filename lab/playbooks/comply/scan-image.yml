@@ -23,6 +23,14 @@
         name: "{{ registry_url }}/{{ container_name }}:{{ container_tag }}"
       register: _image_info
 
+    - name: Fail if image does not exist locally
+      ansible.builtin.assert:
+        that:
+          - _image_info.images | length > 0
+        fail_msg: >-
+          Image {{ registry_url }}/{{ container_name }}:{{ container_tag }} not found
+          in local podman storage. Run the 'Build Container' job template first.
+
     - name: Record image details
       ansible.builtin.copy:
         content: |
