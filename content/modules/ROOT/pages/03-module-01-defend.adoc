@@ -74,7 +74,7 @@ index=main sourcetype=linux_secure "CVE-2024-38476" OR "httpd" OR "vulnerability
 +
 This groups the findings by host and log source — this is the query that powers the Splunk saved search alert.
 
-. Navigate to **Settings → Searches, reports, and alerts** to see the pre-configured **DCC CVE Alert** saved search. This search runs every minute and is configured to fire the EDA add-on action when it detects matches.
+. Navigate to **Settings → Searches, reports, and alerts**. Make sure you configure your filters to **Type: ALL**, **App: All** and **Owner: Administrator**. You will then see the pre-configured **DCC CVE Alert** saved search. This search runs every minute and is configured to fire the EDA add-on action when it detects matches.
 
 ==== Verify
 
@@ -330,7 +330,7 @@ When the Splunk saved search detects CVE events, the **Event-Driven Ansible Add-
 * Username: `gitea`
 * Password: `ansible123!`
 
-. In the *Gitea* , click on explore and navigate to the repository `defend-contain-comply`.
+. In the *Gitea* , click on **Explore** and navigate to the repository `defend-contain-comply`.
 
 . Create a new file and add the following path to the repository `/extensions/eda/rulebooks/splunk-cve-alert.yml`, add the following yaml content:
 
