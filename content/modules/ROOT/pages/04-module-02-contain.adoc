@@ -200,8 +200,7 @@ This is the key insight: even though `admin` has full AAP permissions, **the pla
 
 . Log out of AAP Controller (click the user icon in the top right → **Log out**).
 
-. Log back in as the security engineer:
-
+. Log back in as the security engineer
 
 == Exercise 5: Execute the Patching Workflow
 
@@ -219,7 +218,6 @@ Stay logged in as `security_engineer` — the execution policy you configured in
 * Gather system facts (backup age, disk space, service health)
 * Send the data to OPA for system-level policy evaluation
 * Display PASS/FAIL for each gate
-+
 +
 [TIP]
 ====
