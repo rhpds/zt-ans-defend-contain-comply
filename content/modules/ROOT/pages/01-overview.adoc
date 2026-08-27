@@ -68,19 +68,15 @@ You should have:
 
 | 1
 | **DEFEND** — Detect CVE via Splunk/EDA, automate containment and hardening
-| ~40 min
+|
 
 | 2
 | **CONTAIN** — OPA policy-gated patching workflow with compliance verification
-| ~40 min
+| 
 
 | 3
 | **COMPLY** — Compliance audit, CIS hardening, evidence generation, container build and delivery
-| ~45 min
-
-| —
-| Wrap-up and Q&A
-| ~10 min
+|
 |===
 
 Total: **{lab_duration}** depending on pace and discussion.
