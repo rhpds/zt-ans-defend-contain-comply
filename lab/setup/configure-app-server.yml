@@ -211,6 +211,64 @@
       delay: 10
       until: _registry_pull is succeeded
 
+    # ── CIS baseline (intentionally non-compliant for Module 3) ────────
+    # Module 3 audits 17 OPA controls. RHEL 9 defaults already pass most
+    # of the original set, so the pre/post reports barely moved. Seed a
+    # weak CIS posture here; COMPLY - CIS Harden remediates it.
+    - name: Install rpcbind so the unnecessary-service control can fail
+      ansible.builtin.dnf:
+        name: rpcbind
+        state: present
+
+    - name: Enable rpcbind
+      ansible.builtin.systemd:
+        name: rpcbind
+        state: started
+        enabled: true
+
+    - name: Seed weak SSH settings for the pre-hardening audit
+      ansible.builtin.copy:
+        content: |
+          PermitRootLogin yes
+          X11Forwarding yes
+          MaxAuthTries 6
+          ClientAliveInterval 0
+        dest: /etc/ssh/sshd_config.d/99-cis-hardening.conf
+        mode: "0644"
+        owner: root
+        group: root
+      notify: Restart sshd
+
+    - name: Seed world-readable permissions on sensitive files
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - { path: /etc/passwd, mode: "0664" }
+        - { path: /etc/shadow, mode: "0644" }
+        - { path: /etc/ssh/sshd_config, mode: "0644" }
+
+    - name: Seed insecure kernel parameters
+      ansible.posix.sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        sysctl_set: true
+        reload: true
+        state: present
+      loop:
+        - { key: net.ipv4.conf.all.accept_redirects, value: "1" }
+        - { key: net.ipv4.conf.all.send_redirects, value: "1" }
+        - { key: net.ipv4.conf.all.accept_source_route, value: "1" }
+
+    - name: Seed permissive umask in login.defs
+      ansible.builtin.lineinfile:
+        path: /etc/login.defs
+        regexp: "^UMASK"
+        line: "UMASK 022"
+
+    - name: Flush handlers so seeded SSH settings are live
+      ansible.builtin.meta: flush_handlers
+
     # ── Verification ───────────────────────────────────────────────────
     - name: Gather verification data
       block:
@@ -239,3 +297,10 @@
             CVE staged: {{ target_cve }}
             Podman:    installed
             Backup:    /var/log/last-backup-timestamp present
+            CIS seed:  weak SSH, sysctl, file modes, rpcbind, umask 022
+
+  handlers:
+    - name: Restart sshd
+      ansible.builtin.systemd:
+        name: sshd
+        state: restarted

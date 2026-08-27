@@ -41,5 +41,5 @@ tabs:
     url: https://splunk-http-${guid}.${domain}
     external: true
   - name: Gitea
-    url: https://gitea-${guid}.${domain}/
+    url: https://gitea-${guid}.${domain}/gitea/defend-contain-comply
     external: true

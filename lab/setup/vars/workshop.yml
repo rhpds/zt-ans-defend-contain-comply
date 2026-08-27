@@ -44,9 +44,10 @@ workshop_ee_name: "Default execution environment"
 scan_ee_name: "Trusted Pipeline EE"
 scan_ee_image: "quay.io/nmartins/trusted-pipeline-ee:latest"
 
-# Gitea SCM
+# Gitea SCM (public route from the control VM; http://gitea:3000 does not resolve there)
 gitea_url: "http://gitea:3000"
 gitea_repo: "gitea/defend-contain-comply"
+gitea_scm_branch: "dev"
 
 # Splunk container
 splunk_host: "{{ hostvars['central']['ansible_host'] | default('central') }}"

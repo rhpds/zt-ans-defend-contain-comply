@@ -39,14 +39,15 @@ Notice the structure:
 * The `controls` array assembles all rules into a structured list with IDs, names, and categories
 * The `result` object returns the overall compliance status, pass/fail counts, and per-control details
 
-. Identify the 13 controls and their categories:
+. Identify the 17 controls and their categories:
 +
 * **SELinux** — Is enforcement mode active?
 * **Firewall** — Is firewalld running?
-* **SSH** — Root login, X11 forwarding, max auth tries, idle timeout
-* **Kernel** — ICMP redirects, send redirects, ASLR
-* **File permissions** — `/etc/passwd`, `/etc/shadow`
+* **SSH** — Root login, X11 forwarding, max auth tries, idle timeout, login banner
+* **Kernel** — ICMP redirects, send redirects, ASLR, source routing
+* **File permissions** — `/etc/passwd`, `/etc/shadow`, `sshd_config`
 * **Services** — Unnecessary services (`rpcbind`) should be disabled
+* **Login** — Restrictive `UMASK 027`
 * **Vulnerability** — No open CVEs
 
 . From the terminal, verify OPA has the compliance policy loaded:
@@ -77,7 +78,7 @@ Try changing `"Enforcing"` to `"Permissive"` and see how the result changes. Ans
 === Verify
 
 * The compliance policy is loaded in OPA (`policies/dcc-compliance.rego`)
-* You can identify the 13 controls and their categories in the Rego source
+* You can identify the 17 controls and their categories in the Rego source
 * You understand the input/output contract: Ansible provides system facts, OPA returns pass/fail per control
 
 == Exercise 2: Run the Pre-Hardening Compliance Audit
@@ -108,7 +109,7 @@ The report shows:
 * A **Failed Controls** table highlighting exactly which controls need remediation
 * A **All Controls** table with PASS/FAIL status for every control
 +
-Some controls may already pass from Module 1 hardening (e.g., SELinux). Others require CIS-level remediation.
+Some controls already pass from earlier modules and the OS default (SELinux, firewall, ASLR, and no open CVEs if you patched in Module 2). The rest fail on purpose: app servers are seeded with a weak CIS posture so the pre-hardening report should show roughly **4 of 17** passing. That gap is what CIS hardening is about to close.
 
 === Verify
 
@@ -133,7 +134,7 @@ Run the hardening playbook that remediates failed compliance controls.
 +
 [source,role="execute"]
 ----
-ssh rhel01 "sudo sshd -T 2>/dev/null | grep -E '^(permitrootlogin|x11forwarding|maxauthtries|clientaliveinterval)'"
+ssh rhel01 "sudo sshd -T 2>/dev/null | grep -E '^(permitrootlogin|x11forwarding|maxauthtries|clientaliveinterval|banner)'"
 ----
 +
 Expected:
@@ -142,27 +143,29 @@ Expected:
 * `x11forwarding no` — disables GUI forwarding (attack surface reduction)
 * `maxauthtries 4` — limits brute-force password attempts
 * `clientaliveinterval 300` — disconnects idle sessions after 5 minutes
+* `banner /etc/issue.net` — presents a legal notice before login
 
 . **Verify file permission hardening** — sensitive system files must have restricted permissions:
 +
 [source,role="execute"]
 ----
-ssh rhel01 'stat -c "%a %n" /etc/passwd /etc/shadow /etc/group /etc/gshadow'
+ssh rhel01 'stat -c "%a %n" /etc/passwd /etc/shadow /etc/group /etc/gshadow /etc/ssh/sshd_config'
 ----
 +
-Expected: `644` for passwd/group (readable by all, writable by root), `000` for shadow/gshadow (accessible only by root).
+Expected: `644` for passwd/group (readable by all, writable by root), `000` for shadow/gshadow (accessible only by root), `600` for `sshd_config`.
 
 . **Verify kernel parameters** — network stack hardening prevents common attack vectors:
 +
 [source,role="execute"]
 ----
-ssh rhel01 sysctl net.ipv4.conf.all.accept_redirects net.ipv4.conf.all.send_redirects kernel.randomize_va_space
+ssh rhel01 sysctl net.ipv4.conf.all.accept_redirects net.ipv4.conf.all.send_redirects net.ipv4.conf.all.accept_source_route kernel.randomize_va_space
 ----
 +
 Expected:
 +
 * `accept_redirects = 0` — prevents ICMP redirect attacks (route poisoning)
 * `send_redirects = 0` — host should not send redirects (it's not a router)
+* `accept_source_route = 0` — drops source-routed packets
 * `randomize_va_space = 2` — ASLR fully enabled (makes memory-based exploits harder)
 
 . **Confirm unnecessary services are disabled** — reducing the listening surface:
@@ -174,12 +177,22 @@ ssh rhel01 'systemctl is-enabled rpcbind 2>/dev/null; systemctl is-enabled avahi
 +
 Expected: `disabled` or `not-found`. These services are rarely needed on application servers and expose unnecessary network ports.
 
+. **Verify login umask** — new files should not be world-writable:
++
+[source,role="execute"]
+----
+ssh rhel01 "grep ^UMASK /etc/login.defs"
+----
++
+Expected: `UMASK 027`.
+
 === Verify
 
 * SSH configuration matches CIS recommendations
 * File permissions are tightened on sensitive system files
 * Kernel parameters are hardened against network-level attacks
 * Unnecessary services are stopped and disabled
+* Login umask is 027
 
 == Exercise 4: Re-Audit and Generate Compliance Report
 
@@ -201,8 +214,8 @@ audit_phase: post
 
 . Click the **Compliance Portal** tab. You should now see both the pre-hardening and post-hardening audit reports. Open both and compare:
 +
-* The **pre-hardening** report shows several failed controls (SSH, kernel, file permissions, services)
-* The **post-hardening** report should show all controls passing — the CIS hardening fixed them
+* The **pre-hardening** report shows roughly **4 of 17** controls passing (SELinux, firewall, ASLR, and no open CVEs)
+* The **post-hardening** report should show **17 of 17** passing — CIS hardening closed the SSH, kernel, file, service, and login gaps
 +
 This before/after comparison is the evidence auditors require.
 

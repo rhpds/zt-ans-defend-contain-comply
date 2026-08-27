@@ -33,7 +33,7 @@ Over this workshop, you managed a complete vulnerability lifecycle:
 * **Mean-time-to-contain**: From 45+ minutes (manual SSH) to seconds (EDA + workflow)
 * **Policy enforcement**: Zero patches applied without passing OPA policy gates
 * **Audit readiness**: Compliance reports generated automatically with before/after evidence
-* **Provable compliance**: 13 OPA-audited, CIS-hardened controls with per-control pass/fail
+* **Provable compliance**: 17 OPA-audited, CIS-hardened controls with per-control pass/fail
 * **Supply chain trust**: Every container image traceable to specific advisory remediation
 
 == Architecture recap

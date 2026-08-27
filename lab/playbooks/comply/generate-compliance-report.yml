@@ -61,7 +61,7 @@
           selinux_status: "{{ _evidence.results[1].stdout }}"
           firewall_config: "{{ _evidence.results[2].stdout }}"
           listening_ports: "{{ _evidence.results[3].stdout }}"
-          ssh_config: "{{ _evidence.results[4].stdout_lines | select('match', '^(permitrootlogin|x11forwarding|maxauthtries|clientaliveinterval)') | list | join('\n') }}"
+          ssh_config: "{{ _evidence.results[4].stdout_lines | select('match', '^(permitrootlogin|x11forwarding|maxauthtries|clientaliveinterval|banner)') | list | join('\n') }}"
           pre_audit: "{{ pre_audit }}"
           post_audit: "{{ post_audit }}"
 

@@ -22,7 +22,7 @@ By the end of this workshop, you'll have practical AAP skills to address Parasol
 * **Automated detection response** → EDA rulebook triggers containment within seconds of alert
 * **Zero-touch containment** → Firewall, SELinux, and AIDE deployed without manual SSH
 * **OPA policy-gated patching** → Advisory applied only after OPA validates backup, window, disk, and health gates
-* **Compliance evidence** → 13 OPA controls audited, CIS-hardened, with before/after HTML report
+* **Compliance evidence** → 17 OPA controls audited, CIS-hardened, with before/after HTML report
 * **Immutable delivery** → Hardened application containerized, scanned, and pushed to trusted registry
 
 **Technical outcome**: End-to-end vulnerability lifecycle automation using AAP Controller, EDA, OPA, and Podman.

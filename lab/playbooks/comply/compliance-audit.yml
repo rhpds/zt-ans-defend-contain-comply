@@ -42,6 +42,7 @@
         ssh_x11_forwarding: "{{ _sshd_config.stdout_lines | select('match', '^x11forwarding') | first | split() | last }}"
         ssh_max_auth_tries: "{{ (_sshd_config.stdout_lines | select('match', '^maxauthtries') | first | split() | last) | int }}"
         ssh_client_alive_interval: "{{ (_sshd_config.stdout_lines | select('match', '^clientaliveinterval') | first | split() | last) | int }}"
+        ssh_banner: "{{ (_sshd_config.stdout_lines | select('match', '^banner ') | list | first | default('banner none') | split) | last }}"
 
     - name: Gather sysctl values
       ansible.builtin.command:
@@ -52,6 +53,7 @@
         - net.ipv4.conf.all.accept_redirects
         - net.ipv4.conf.all.send_redirects
         - kernel.randomize_va_space
+        - net.ipv4.conf.all.accept_source_route
 
     - name: Gather file permissions
       ansible.builtin.stat:
@@ -60,6 +62,13 @@
       loop:
         - /etc/passwd
         - /etc/shadow
+        - /etc/ssh/sshd_config
+
+    - name: Gather login.defs umask
+      ansible.builtin.command:
+        cmd: awk '/^UMASK/ {print $2; exit}' /etc/login.defs
+      register: _umask
+      changed_when: false
 
     - name: Check for open CVEs
       ansible.builtin.command:
@@ -83,11 +92,15 @@
           ssh_x11_forwarding: "{{ ssh_x11_forwarding }}"
           ssh_max_auth_tries: "{{ ssh_max_auth_tries | int }}"
           ssh_client_alive_interval: "{{ ssh_client_alive_interval | int }}"
+          ssh_banner: "{{ ssh_banner }}"
           sysctl_accept_redirects: "{{ _sysctl_values.results[0].stdout | int }}"
           sysctl_send_redirects: "{{ _sysctl_values.results[1].stdout | int }}"
           sysctl_randomize_va_space: "{{ _sysctl_values.results[2].stdout | int }}"
-          passwd_mode: "{{ _file_perms.results[0].stat.mode | int(base=8) % 4096 }}"
-          shadow_mode: "{{ _file_perms.results[1].stat.mode | int(base=8) % 4096 }}"
+          sysctl_accept_source_route: "{{ _sysctl_values.results[3].stdout | int }}"
+          passwd_mode: "{{ _file_perms.results[0].stat.mode[-3:] }}"
+          shadow_mode: "{{ _file_perms.results[1].stat.mode[-3:] }}"
+          sshd_config_mode: "{{ _file_perms.results[2].stat.mode[-3:] }}"
+          umask: "{{ _umask.stdout | trim | int }}"
           rpcbind_enabled: "{{ _rpcbind.stdout == 'enabled' }}"
           open_cves: "{{ [_target_cve] if _target_cve in _cve_list.stdout else [] }}"
 

@@ -68,7 +68,11 @@
         name: "{{ workshop_project_name }}"
         organization: "{{ workshop_org }}"
         scm_type: git
-        scm_url: "{{ gitea_url }}/{{ gitea_repo }}.git"
+        scm_url: >-
+          {{ ('https://gitea-' ~ workshop_guid ~ '.' ~ workshop_domain ~ '/' ~ gitea_repo ~ '.git')
+             if (workshop_guid | default('') | length > 0 and (workshop_domain | default('')) | length > 0)
+             else (gitea_url ~ '/' ~ gitea_repo ~ '.git') }}
+        scm_branch: "{{ gitea_scm_branch }}"
         scm_update_on_launch: false
         state: present
       register: _project

@@ -103,16 +103,16 @@
       ansible.builtin.debug:
         msg: |
           CIS hardening applied on {{ inventory_hostname }}:
-            - SSH: root login disabled, X11 off, max auth 4, alive interval 300s
-            - Files: shadow/gshadow locked, sshd_config restricted
-            - Kernel: redirects disabled, ASLR enabled, martian logging on
+            - SSH: root login disabled, X11 off, max auth 4, alive interval 300s, banner set
+            - Files: passwd 644, shadow/gshadow locked, sshd_config 600
+            - Kernel: redirects disabled, source routing off, ASLR enabled, martian logging on
             - Services: {{ unnecessary_services | join(', ') }} disabled
             - Login: umask 027, core dumps disabled, cron restricted
 
     - name: Set hardening stats for workflow
       ansible.builtin.set_stats:
         data:
-          hardening_controls_applied: 7
+          hardening_controls_applied: 13
           hardening_host: "{{ inventory_hostname }}"
 
   handlers:

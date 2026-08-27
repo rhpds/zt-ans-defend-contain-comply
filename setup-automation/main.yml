@@ -107,7 +107,7 @@
     domain: "{{ lookup('ansible.builtin.env', 'DOMAIN') }}"
     workshop_repo_url: "https://github.com/rhpds/zt-ans-defend-contain-comply.git"
     workshop_repo_dest: /tmp/dcc-workshop
-    workshop_repo_branch: main
+    workshop_repo_branch: dev
   tasks:
     - name: Bootstrap central node
       ansible.builtin.include_tasks: tasks/setup-central.yml
