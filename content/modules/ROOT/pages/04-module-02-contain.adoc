@@ -127,7 +127,7 @@ Now construct the workflow that chains the policy check, approval, patching, and
 . **Add Node 3 — Patch System:**
 +
 * Hover over the **Approve Patch Application** node and click the **three dots/options** icon
-* Select **On Approve** as the link type
+* Select **On Success** as the link type
 * Select **Job Template** as the node type
 * Search for and select **CONTAIN - Patch System**
 * Click **Save**
