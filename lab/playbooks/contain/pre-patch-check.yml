@@ -42,19 +42,19 @@
             free_disk_gb: {{ free_disk_gb }}
             service_state: {{ _service_state.status.ActiveState }}
 
-    - name: Query OPA patch policy
-      ansible.builtin.uri:
-        url: "{{ opa_url }}/v1/data/dcc/patch_policy/result"
-        method: POST
-        body_format: json
-        body:
-          input:
-            current_hour: "{{ ansible_date_time.hour | int }}"
-            backup_age_hours: "{{ backup_age_hours | float }}"
-            free_disk_gb: "{{ free_disk_gb | float }}"
-            service_state: "{{ _service_state.status.ActiveState }}"
-        return_content: true
-      register: _opa_response
+    # - name: Query OPA patch policy
+    #   ansible.builtin.uri:
+    #     url: "{{ opa_url }}/v1/data/dcc/patch_policy/result"
+    #     method: POST
+    #     body_format: json
+    #     body:
+    #       input:
+    #         current_hour: "{{ ansible_date_time.hour | int }}"
+    #         backup_age_hours: "{{ backup_age_hours | float }}"
+    #         free_disk_gb: "{{ free_disk_gb | float }}"
+    #         service_state: "{{ _service_state.status.ActiveState }}"
+    #     return_content: true
+    #   register: _opa_response
 
     - name: Display policy gate results
       ansible.builtin.debug:
