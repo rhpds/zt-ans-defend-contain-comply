@@ -509,6 +509,8 @@ In **Automation Execution → Templates**, find **DEFEND - Verify Security Postu
 The playbook runs against all app servers and produces a structured report for each host showing: service state, firewall zones, containment zone details, internal HTTP access, SELinux booleans, httpd hardening, AIDE monitoring, and the containment log.
 +
 Both hosts should show identical containment posture — external interface isolated, httpd still running internally, SELinux hardened. The difference is *how* they got there.
++
+Lastly, navigate back to **Automation Decisions → Event Streams** and disable event forwarding.
 
 ==== Verify
 
