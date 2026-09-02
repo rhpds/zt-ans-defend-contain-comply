@@ -23,8 +23,6 @@ antora:
       solveButton: false
 
 tabs:
-  - name: "Terminal"
-    url: /wetty_central
   - name: AAP Controller
     url: https://control-${guid}.${domain}/
     external: false
@@ -43,3 +41,5 @@ tabs:
   - name: Gitea
     url: https://gitea-${guid}.${domain}/
     external: true
+  - name: "Terminal"
+    url: /wetty_central
