@@ -4,6 +4,7 @@ import rego.v1
 
 # System compliance baselines for the DCC workshop.
 # Input: JSON object with host facts collected by the compliance-audit playbook.
+# Ansible URI JSON may send numbers and bools as strings; coerce before comparing.
 
 default compliant := false
 default selinux_enforcing := false
@@ -20,6 +21,24 @@ default shadow_permissions_ok := false
 default no_unnecessary_services := false
 default no_open_cves := false
 
+# ── Type coercion ───────────────────────────────────────────────────
+
+as_true(val) if lower(sprintf("%v", [val])) == "true"
+
+as_false(val) if lower(sprintf("%v", [val])) == "false"
+
+cve_list := input.open_cves if is_array(input.open_cves)
+
+cve_list := [] if {
+	is_string(input.open_cves)
+	not contains(input.open_cves, "CVE")
+}
+
+cve_list := [input.open_cves] if {
+	is_string(input.open_cves)
+	contains(input.open_cves, "CVE")
+}
+
 # ── SELinux ─────────────────────────────────────────────────────────
 
 selinux_enforcing if {
@@ -29,7 +48,7 @@ selinux_enforcing if {
 # ── Firewall ────────────────────────────────────────────────────────
 
 firewall_active if {
-	input.firewall_active == true
+	as_true(input.firewall_active)
 }
 
 # ── SSH Hardening ───────────────────────────────────────────────────
@@ -43,48 +62,49 @@ ssh_x11_forwarding_disabled if {
 }
 
 ssh_max_auth_tries_ok if {
-	input.ssh_max_auth_tries <= 4
+	to_number(input.ssh_max_auth_tries) <= 4
 }
 
 ssh_client_alive_set if {
-	input.ssh_client_alive_interval > 0
-	input.ssh_client_alive_interval <= 300
+	interval := to_number(input.ssh_client_alive_interval)
+	interval > 0
+	interval <= 300
 }
 
 # ── Kernel Parameters ───────────────────────────────────────────────
 
 sysctl_accept_redirects_disabled if {
-	input.sysctl_accept_redirects == 0
+	to_number(input.sysctl_accept_redirects) == 0
 }
 
 sysctl_send_redirects_disabled if {
-	input.sysctl_send_redirects == 0
+	to_number(input.sysctl_send_redirects) == 0
 }
 
 sysctl_aslr_enabled if {
-	input.sysctl_randomize_va_space == 2
+	to_number(input.sysctl_randomize_va_space) == 2
 }
 
 # ── File Permissions ────────────────────────────────────────────────
 
 passwd_permissions_ok if {
-	input.passwd_mode <= 644
+	to_number(input.passwd_mode) <= 644
 }
 
 shadow_permissions_ok if {
-	input.shadow_mode <= 640
+	to_number(input.shadow_mode) <= 640
 }
 
 # ── Services ────────────────────────────────────────────────────────
 
 no_unnecessary_services if {
-	input.rpcbind_enabled == false
+	as_false(input.rpcbind_enabled)
 }
 
 # ── Vulnerability State ─────────────────────────────────────────────
 
 no_open_cves if {
-	count(input.open_cves) == 0
+	count(cve_list) == 0
 }
 
 # ── Control Definitions ─────────────────────────────────────────────

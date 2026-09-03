@@ -78,7 +78,7 @@
       ansible.builtin.set_fact:
         opa_input:
           selinux_mode: "{{ _selinux.stdout }}"
-          firewall_active: "{{ _firewall.rc == 0 }}"
+          firewall_active: "{{ 'true' if _firewall.rc == 0 else 'false' }}"
           ssh_permit_root_login: "{{ ssh_permit_root_login }}"
           ssh_x11_forwarding: "{{ ssh_x11_forwarding }}"
           ssh_max_auth_tries: "{{ ssh_max_auth_tries | int }}"
@@ -86,9 +86,9 @@
           sysctl_accept_redirects: "{{ _sysctl_values.results[0].stdout | int }}"
           sysctl_send_redirects: "{{ _sysctl_values.results[1].stdout | int }}"
           sysctl_randomize_va_space: "{{ _sysctl_values.results[2].stdout | int }}"
-          passwd_mode: "{{ _file_perms.results[0].stat.mode | int(base=8) % 4096 }}"
-          shadow_mode: "{{ _file_perms.results[1].stat.mode | int(base=8) % 4096 }}"
-          rpcbind_enabled: "{{ _rpcbind.stdout == 'enabled' }}"
+          passwd_mode: "{{ (_file_perms.results[0].stat.mode | string)[-3:] | int }}"
+          shadow_mode: "{{ (_file_perms.results[1].stat.mode | string)[-3:] | int }}"
+          rpcbind_enabled: "{{ 'true' if _rpcbind.stdout == 'enabled' else 'false' }}"
           open_cves: "{{ [_target_cve] if _target_cve in _cve_list.stdout else [] }}"
 
     - name: Query OPA compliance policy
