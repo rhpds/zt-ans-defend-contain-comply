@@ -52,21 +52,6 @@ Splunk Alert → EDA Webhook → Containment Workflow
                                                                   Container Build → Scan → Push
 ....
 
-== Taking this further
-
-* **Scale**: Add more hosts to inventory and use job slicing for parallel patching
-* **Real Splunk**: Replace the simulated webhook with a live Splunk HEC integration
-* **Image signing**: Add `cosign` signing to the supply chain (provenance attestation)
-* **GitOps**: Trigger container builds from Git commits to the Containerfile
-* **ITSM integration**: Connect approval nodes to ServiceNow or Jira for change tickets
-* **Extended compliance**: Add SCAP or OpenSCAP scanning alongside OPA policy checks
-
-== Resources
-
-* https://access.redhat.com/documentation/en-us/red_hat_ansible_automation_platform/2.5[AAP 2.5 Documentation]
-* https://ansible.readthedocs.io/projects/rulebook/[Event-Driven Ansible Rulebook Reference]
-* https://docs.podman.io/[Podman Documentation]
-* https://access.redhat.com/security/cve/CVE-2024-38476[CVE-2024-38476 Advisory]
 
 == Feedback
 

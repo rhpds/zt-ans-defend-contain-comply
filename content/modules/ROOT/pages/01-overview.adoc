@@ -47,6 +47,13 @@ You should have:
 * Understanding of CVE/advisory concepts (no security expertise required)
 * Access to the lab environment (provided)
 
+== Terminology
+
+
+* SIEM - Security Information and Event Management is a tool that collects and analyzes log data from across an organization's digital environment to spot threats in real time.
+* AIDE - Advanced Intrusion Detection Environment is a host-based intrusion detection system used in Red Hat Enterprise Linux (RHEL) to monitor file integrity and detect unauthorized system modifications
+* SSRF - Server-Side Request Forgery is a vulnerability that allows an attacker to make a server-side request to a different domain than the one specified in the request.
+
 == Parasol Finance's challenges
 
 **The situation**: Parasol Finance processes 2 million transactions daily. Any customer-facing service outage or compromise has immediate regulatory and reputational impact.
@@ -90,7 +97,7 @@ Your lab consists of:
 | Host | Role | Access
 
 | `aap-controller`
-| AAP Controller 2.5 — workflow orchestration
+| AAP Controller 2.6 — workflow orchestration
 | Web UI tab
 
 | `eda-controller`

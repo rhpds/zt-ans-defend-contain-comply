@@ -65,8 +65,6 @@ You should see multiple events reporting a critical vulnerability in `httpd` on 
 . Now run the aggregated search that the saved alert uses:
 +
 
-image::sec2.png[Splunk Search & Reporting]
-
 [source]
 ----
 index=main sourcetype=linux_secure "CVE-2024-38476" OR "httpd" OR "vulnerability" | stats count by host, source | where count > 0
@@ -185,7 +183,7 @@ NOTE: Keep this baseline in mind — after the workflow runs, every one of these
 
 ==== Run the containment workflow
 
-. In AAP Controller, you need to login with the following details:
+. In AAP, you need to login with the following details:
 
 * Username: `admin`
 * Password: `ansible123!`
@@ -198,15 +196,10 @@ NOTE: Keep this baseline in mind — after the workflow runs, every one of these
 +
 * **DEFEND - Scan System** — confirms {target_cve} is present
 * **DEFEND - Contain Service** — isolates the external interface (`eth0`) to an `internal-only` firewall zone and hardens httpd
-
-image::sec4.png[Vulnerability Containment Workflow]
-
-
 * **DEFEND - Harden Posture** — applies SELinux booleans and deploys file integrity monitoring
 
-image::sec5.png[Vulnerability Containment Workflow]
-
 . Wait for the workflow to complete successfully.
+image::sec5.png[Vulnerability Containment Workflow]
 
 ==== Verify the containment
 
@@ -330,9 +323,9 @@ When the Splunk saved search detects CVE events, the **Event-Driven Ansible Add-
 * Username: `gitea`
 * Password: `ansible123!`
 
-. In the *Gitea* , click on **Explore** and navigate to the repository `defend-contain-comply`.
+. In *Gitea* , click on **Explore** and navigate to the repository `defend-contain-comply`.
 
-. Create a new file and add the following path to the repository `/extensions/eda/rulebooks/splunk-cve-alert.yml`, add the following yaml content:
+. Create a new file: `splunk-cve-alert.yml` in the following path to the repository `extensions/eda/rulebooks`, add the following yaml content:
 
 image::sec6.png[Gitea Repository]
 
@@ -373,7 +366,9 @@ The Splunk add-on sends the saved search name in `event.payload.search_name`. Us
 *Rule 1* (CVE alert from Splunk): Match `event.payload.search_name is search("CVE Alert")`. Use `run_workflow_template` to trigger "Vulnerability Containment" with `job_args.limit` set to `event.payload.results.host`.
 ====
 
-. Commit your changes in Gitea, then sync the EDA project in AAP Controller (*Automation Decisions → Projects → Defend, Contain, Comply → Sync*).
+4. Commit your changes in Gitea
+
+5. Now sync the EDA project in the AAP Controller (*Automation Decisions → Projects → Defend, Contain, Comply → Sync*).
 
 
 === Exercise 5: Connect Splunk to EDA
@@ -385,7 +380,7 @@ The Splunk add-on sends the saved search name in `event.payload.search_name`. Us
 
 The AAP credential, project, and decision environment are already configured. You need to create an **Event Stream** in Event-Driven Ansible, configure the **Splunk add-on** to point at it, and create the **Rulebook Activation**.
 
-. Open the **Automation Decisions** and navigate to **Infrastructure → Credentials**. We need to create a token credential to be used by the Event Stream. Click on **Create credential**:
+. In AAP, open the **Automation Decisions** and navigate to **Infrastructure → Credentials**. We need to create a token credential to be used by the Event Stream. Click on **Create credential**:
 +
 * Name: `Splunk EDA Token`
 * Description: `Token for Splunk EDA`
@@ -402,14 +397,16 @@ The AAP credential, project, and decision environment are already configured. Yo
 * Organization: `Default`
 * Event stream type: `Token Event Stream`
 * Credential: `Splunk EDA Token`
-* Click **Create credential**
+* Click **Create Event Stream**
 
-. We now have an Event Stream created, but we need to configure the Splunk add-on to point at it. You will need to copy the Event Stream URL and the Token from the Event Stream you created.
-
+. Copy the Event Stream URL and the Token from the Event Stream you created, and save if for later.
 
 . Open the **Splunk** tab and navigate to **Apps → Event Driven Ansible Add-on for Splunk → Configuration**.
 
-. When adding the URL into the plugin, please note you need to remove aap.example.org from the URL due to the workshop environment, use 192.168.1.10 instead.
+[TIP]
+====
+When adding the URL into the plugin, please note you need to remove aap.example.org from the URL due to the workshop environment, use 192.168.1.10 instead.
+====
 
 . Click **Add**:
 +
@@ -417,21 +414,24 @@ The AAP credential, project, and decision environment are already configured. Yo
 * Environment: `DCC`
 * Integration Type: `Webhook`
 * Webhook Endpoint: https://192.168.1.10:443/eda-event-streams.... (Use your URL)
-* Auth Type: `API Key`
-* Token: ansibleiscool
-* SSL Check Hostname: `No` (lab environment uses self-signed certificates)
-* Click **Save**
+* Auth Type: `API Key in Header`
+* Authentication Token: ansibleiscool
+* SSL Hostname Verification: unchecked (lab environment uses self-signed certificates)
+* Click **Add**
 
 
-. Navigate back to **AAP Controller**, navigate to **Automation Decisions → Rulebook Activations** and click **Create rulebook activation**:
+. Navigate back to **AAP**, navigate to **Automation Decisions → Rulebook Activations** and click **Create rulebook activation**:
 +
 * Name: `DCC CVE Alert Responder`
 * Project: `Defend, Contain, Comply` (pre-configured)
 * Rulebook: select `splunk-cve-alert.yml` 
 * Decision Environment: select the default (pre-configured)
-* Credential: `DCC Controller Token` (pre-configured)
-* Event stream: `Splunk EDA`
-* Click **Create rulebook activation**
+* Credential: `Splunk EDA Token`
+* Decision Environment: Default Decision Environment
+* Event stream: Select the Gear Icon, Event stream: Splunk EDA
+* Click **save**
+
+image::sec8.png[Event Stream Select]
 
 . Wait for the activation status to show **Running**.
 
@@ -445,7 +445,7 @@ The AAP credential, project, and decision environment are already configured. Yo
 
 Now deploy the same vulnerable application to a second server.
 
-. In AAP Controller, navigate to **Automation Execution → Templates** and find the **DEFEND - Deploy Application** job template.
+. In AAP, navigate to **Automation Execution → Templates** and find the **DEFEND - Deploy Application** job template.
 
 . Click the rocket icon to **Launch**. When prompted for a **Limit**, enter `rhel02` to target only rhel02.
 
@@ -453,10 +453,9 @@ Now deploy the same vulnerable application to a second server.
 
 . Click the **Portal - rhel02** tab and confirm the portal is now up and accessible.
 
-
 * The DEFEND - Deploy Application job completed successfully
 * The Parasol Finance Portal on rhel02 is accessible
-* Splunk shows CVE events for both hosts
+
 
 === Exercise 7: Trigger EDA and Watch Automated Containment
 
@@ -467,7 +466,7 @@ Now deploy the same vulnerable application to a second server.
 
 Everything is in place: EDA is running, rhel02 has the vulnerable app, and Splunk has detection events. Now run a scan to trigger the full detection-to-containment chain.
 
-. In AAP Controller, navigate to **Automation Execution → Templates** and launch the **DEFEND - Scan System** job template. When prompted for a **Limit**, enter `rhel02`.
+. In AAP, navigate to **Automation Execution → Templates** and launch the **DEFEND - Scan System** job template. When prompted for a **Limit**, enter `rhel02`.
 +
 The scan will detect {target_cve} on rhel02 and report the finding to Splunk via HEC.
 
@@ -475,16 +474,20 @@ The scan will detect {target_cve} on rhel02 and report the finding to Splunk via
 +
 You can verify the saved search fired by navigating to **Settings → Searches, reports, and alerts** and checking the "Last triggered" column.
 +
+
 [TIP]
 ====
 If you don't want to wait for the cron cycle, you can trigger the saved search manually: open **Search & Reporting**, find "DCC CVE Alert" in **Reports**, and click **Run**.
 ====
 
-. Switch to the **AAP Controller** tab and navigate to **Automation Decisions → Event Streams**  — you should see the event received. Navigate to **Rule Audit** and verify you have a successful **CVE alert from Splunk** event. Select this event, and then click on **Actions** in the details of the event to see which job was launched.
+. Switch to the **AAP Controller** tab and navigate to **Automation Decisions → Event Streams**  — you should see the event received counter go from 0 to 1. 
 
 . On the **AAP Controller** tab and navigate to **Automation Execution → Jobs** — the **Vulnerability Containment** workflow should be launching automatically, limited to `rhel02`.
 
 . Watch the workflow complete. Then click the **Portal - rhel02** tab and refresh — the portal should **no longer be accessible**.
+
+.Navigate to **Automation Decisions → Event Streams → Rule Audit** and verify you have a successful **CVE alert from Splunk** event. Select this event, and then click on **Actions** in the details of the event to see which job was launched.
+
 
 . Compare the two portals:
 +
@@ -493,7 +496,13 @@ If you don't want to wait for the cron cycle, you can trigger the saved search m
 
 The same result, but without any manual intervention on rhel02.
 
-. Verify containment on rhel02 from the terminal — `eth0` should be isolated while httpd stays running:
+. From the **Terminal** tab Verify containment on rhel02 from the terminal — `eth0` should be isolated while httpd stays running:
+
+[TIP]
+====
+SSH Password: ansible123!
+====
+
 +
 [source,role="execute"]
 ----
@@ -510,7 +519,10 @@ The playbook runs against all app servers and produces a structured report for e
 +
 Both hosts should show identical containment posture — external interface isolated, httpd still running internally, SELinux hardened. The difference is *how* they got there.
 +
-Lastly, navigate back to **Automation Decisions → Event Streams** and disable event forwarding.
+Lastly, navigate back to **Automation Decisions → Event Streams** and disable event forwarding found in the top right.
+
+image::sec9.png[Disable Forwarding]
+
 
 ==== Verify
 

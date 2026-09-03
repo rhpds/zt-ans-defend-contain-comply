@@ -89,7 +89,7 @@ Try changing `"Enforcing"` to `"Permissive"` and see how the result changes. Ans
 
 Run the audit playbook to evaluate the system's current compliance posture.
 
-. In AAP Controller, navigate to **Automation Execution → Templates** and find **COMPLY - Compliance Audit**.
+. In AAP, navigate to **Automation Execution → Templates** and find **COMPLY - Compliance Audit**.
 +
 Click the rocket icon to **Launch**. When prompted for extra variables, ensure `audit_phase` is set to `pre`:
 +
@@ -125,11 +125,11 @@ Some controls may already pass from Module 1 hardening (e.g., SELinux). Others r
 
 Run the hardening playbook that remediates failed compliance controls.
 
-. In AAP Controller, navigate to **Automation Execution → Templates** and launch **COMPLY - CIS Harden**.
+. In AAP, navigate to **Automation Execution → Templates** and launch **COMPLY - CIS Harden**.
 
 . Watch the job output. The playbook applies hardening in several categories. Once it completes, verify each category from the terminal.
 
-. **Verify SSH hardening** — these are the controls most commonly flagged in audits:
+. **Verify SSH hardening** — these are the controls most commonly flagged in audits, run the following from the **Terminal** tab:
 +
 [source,role="execute"]
 ----
@@ -139,7 +139,7 @@ ssh rhel01 "sudo sshd -T 2>/dev/null | grep -E '^(permitrootlogin|x11forwarding|
 Expected:
 +
 * `permitrootlogin no` — prevents direct root access via SSH
-* `x11forwarding no` — disables GUI forwarding (attack surface reduction)
+* `x11forwarding yes` — disables GUI forwarding (attack surface reduction)
 * `maxauthtries 4` — limits brute-force password attempts
 * `clientaliveinterval 300` — disconnects idle sessions after 5 minutes
 
@@ -192,7 +192,7 @@ Run the audit again to verify all controls now pass, then generate the formal co
 
 . Re-run the compliance audit with `audit_phase=post`:
 +
-In AAP Controller, launch **COMPLY - Compliance Audit** again. Set the extra variable:
+In AAP, launch **COMPLY - Compliance Audit** again. Set the extra variable:
 +
 [source,yaml]
 ----
@@ -205,10 +205,8 @@ audit_phase: post
 * The **post-hardening** report should show all controls passing — the CIS hardening fixed them
 +
 This before/after comparison is the evidence auditors require.
-
-. Generate the full HTML compliance report:
 +
-In AAP Controller, launch **COMPLY - Compliance Report**.
+In AAP, launch **COMPLY - Compliance Report**.
 
 . Return to the **Compliance Portal** tab and refresh. You should now see a compliance report alongside the audit reports. Click it to view the full before/after evidence including package versions, SELinux status, firewall configuration, and SSH hardening.
 
@@ -284,7 +282,7 @@ ssh rhel01 'sudo podman images --format "table {{.Repository}} {{.Tag}} {{.Size}
 *Why we do this:* Building the container is not enough — you need to verify it's clean before publishing. The image scan checks for known CVEs in every package inside the container, proving that {target_cve} is not present in the artifact you're about to deploy. Only after the scan passes does the image get pushed to the trusted registry. This scan-before-publish pattern prevents contaminated images from entering your supply chain.
 ====
 
-. In AAP Controller, navigate to **Automation Execution → Templates** and launch **COMPLY - Scan Image**.
+. In AAP, navigate to **Automation Execution → Templates** and launch **COMPLY - Scan Image**.
 +
 NOTE: This template uses the **Trusted Pipeline EE** execution environment, which includes `oscap-podman` and other container scanning tools not present in the default EE.
 
@@ -323,7 +321,7 @@ ssh rhel01 'curl -s http://localhost:5000/v2/dcc-httpd/tags/list 2>/dev/null | p
 
 Chain the full compliance and delivery process into a single AAP workflow.
 
-. In AAP Controller, navigate to **Automation Execution → Templates** and find the **Compliance and Hardening** workflow template (it has a workflow icon, not a job template icon).
+. In AAP, navigate to **Automation Execution → Templates** and find the **Compliance and Hardening** workflow template (it has a workflow icon, not a job template icon).
 
 . Click on the workflow name to open it, then click the **Visualizer** tab to examine the topology:
 +
@@ -343,9 +341,8 @@ All seven nodes are connected with **On Success** links — if any step fails, t
 
 . Once complete, click on the report node and  review the `set_stats` artifacts in the details of the job:
 +
-In AAP Controller, click on the completed workflow job, then click on the **report** node, and select the details and look at the **Extra Vars / Artifacts** panel. You should see data flowing between nodes:
+In AAP, click on the completed workflow job, then click on the **report** node, and select the details and look at the **Extra Vars / Artifacts** panel. You should see data flowing between nodes:
 +
-* `pre_audit_pass_count` and `post_audit_pass_count` — shows the improvement
 * `hardening_controls_applied` — number of controls remediated
 * `report_path` — location of the generated compliance report
 
