@@ -54,11 +54,11 @@ firewall_active if {
 # ── SSH Hardening ───────────────────────────────────────────────────
 
 ssh_root_login_disabled if {
-	input.ssh_permit_root_login == "no"
+	input.ssh_permit_root_login == false
 }
 
 ssh_x11_forwarding_disabled if {
-	input.ssh_x11_forwarding == "no"
+	input.ssh_x11_forwarding == false
 }
 
 ssh_max_auth_tries_ok if {
